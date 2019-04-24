@@ -265,12 +265,12 @@ class League:
 
 if __name__ == "__main__":
     league =League()
-    league.import_from_json("E:/magie/mathcheckeux/data/allstats.json")
+    league.import_from_json("./data/allstats.json")
     league.save_report("report{}.txt".format("init"))
     descent_runner = Descent_runner(league)
     for i in range(100):
         for j in range(1000):
             descent_runner.step()
-        league.save_report("report{}.txt".format(i))
+        league.save_report("./results/report{}.txt".format(i))
 
 
