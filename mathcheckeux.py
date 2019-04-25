@@ -1,8 +1,9 @@
 import json
 import math
+import elo
 
 ALPHA = 1/400*math.log(10)
-
+STD = 500
 
 class Team:
     def __init__(self):
@@ -129,7 +130,6 @@ class Descent_runner:
 
         for match in league.matches:
             match_contribution_to_gradient_teamed = self._get_match_contribution_to_gradient_teamed(match)
-            p_factor *= match.get_probability()
             if match.get_winner() is None:
                 for player in match.team_1.all_players():
                     gradient[player.id] -= match_contribution_to_gradient_teamed/len(match.team_1.all_players())
@@ -141,8 +141,12 @@ class Descent_runner:
                 for player in match.get_loser().all_players():
                     gradient[player.id] -= match_contribution_to_gradient_teamed/len(match.get_loser().all_players())
 
+        for player_id in self.league.players.keys():
+            player_elo = self.league.players[player_id].elo
+            gradient[player_id] += -player_elo/STD**2
+
         for key in gradient.keys():
-            gradient[key] = gradient[key]*p_factor
+            gradient[key] = gradient[key]
 
         return gradient
 
@@ -159,6 +163,14 @@ class League:
     def __init__(self):
         self.players = {}
         self.matches = []
+
+    def apply_elo_from_file(self, filepath):
+        with open(filepath) as elo_file:
+            for line in elo_file.readlines():
+                data = line.split(":")
+                player_id = int(data[0])
+                player_elo = int(data[1][:-1])
+                self.players[player_id].elo=player_elo
 
     def renorm(self):
         sum = 0
@@ -262,15 +274,36 @@ class League:
                         else:
                             raise Exception("Player is assigned an undefined role")
 
+    def raw_get_winrate(self, heroes_ids_list, vilains_ids_list):
+        heroes_elo = 0
+        for i in heroes_ids_list:
+            heroes_elo += self.players[i].elo
+        heroes_elo /= len(heroes_ids_list)
+
+        print(heroes_elo)
+
+        vilains_elo = 0
+        for i in vilains_ids_list:
+            vilains_elo += self.players[i].elo
+        vilains_elo /= len(vilains_ids_list)
+
+        print(vilains_elo)
+
+        delta = heroes_elo - vilains_elo
+        return elo.get_winrate(delta, ALPHA)
+
 
 if __name__ == "__main__":
     league =League()
     league.import_from_json("./data/allstats.json")
     league.save_report("report{}.txt".format("init"))
+
     descent_runner = Descent_runner(league)
-    for i in range(100):
+    for i in range(25):
         for j in range(1000):
             descent_runner.step()
         league.save_report("./results/report{}.txt".format(i))
+    print(league.raw_get_winrate([11, 225, 321, 262, 65, 174, 10, 292, 172, 263],
+                                 [270, 162, 2, 17, 4, 251, 198, 13, 14, 22]))
 
 
